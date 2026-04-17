@@ -111,4 +111,21 @@ export const getFileInfo = (filePath) => {
   });
 };
 
+// ==================== 歌曲目录 API ====================
+
+// 获取所有歌曲目录
+export const getMusicDirectories = () => {
+  return api.get('/music-directories');
+};
+
+// 添加歌曲目录
+export const addMusicDirectory = (path, name) => {
+  return api.post('/music-directories', { path, name });
+};
+
+// 删除歌曲目录
+export const deleteMusicDirectory = (id) => {
+  return api.delete(`/music-directories/${id}`);
+};
+
 export default api;

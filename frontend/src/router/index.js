@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import PlaylistManagement from '../views/PlaylistManagement.vue'
-import PlaylistEditor from '../views/PlaylistEditor.vue'
+import MusicEditor from '../views/MusicEditor.vue'
+import DirectoryManagement from '../views/DirectoryManagement.vue'
 
 const routes = [
   {
@@ -13,9 +14,14 @@ const routes = [
     component: PlaylistManagement
   },
   {
-    path: '/editor',
-    name: 'PlaylistEditor',
-    component: PlaylistEditor
+    path: '/music-editor',
+    name: 'MusicEditor',
+    component: MusicEditor
+  },
+  {
+    path: '/directories',
+    name: 'DirectoryManagement',
+    component: DirectoryManagement
   }
 ]
 

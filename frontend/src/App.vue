@@ -23,14 +23,27 @@
             <span class="menu-item-badge"></span>
           </div>
         </router-link>
-        <router-link to="/editor" class="menu-item" active-class="active">
+        <router-link to="/music-editor" class="menu-item" active-class="active">
           <div class="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
             </svg>
           </div>
           <div class="menu-item-content">
-            <span class="menu-item-text">歌单编辑</span>
+            <span class="menu-item-text">歌单音乐编辑</span>
+            <span class="menu-item-badge"></span>
+          </div>
+        </router-link>
+        <router-link to="/directories" class="menu-item" active-class="active">
+          <div class="menu-item-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+          </div>
+          <div class="menu-item-content">
+            <span class="menu-item-text">歌曲目录管理</span>
             <span class="menu-item-badge"></span>
           </div>
         </router-link>

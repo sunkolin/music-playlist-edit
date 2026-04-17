@@ -53,6 +53,23 @@ function initializeDatabase() {
       }
     }
   );
+
+  // 创建歌曲目录表
+  db.run(
+    `CREATE TABLE IF NOT EXISTS music_directories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        console.error('创建 music_directories 表失败:', err.message);
+      } else {
+        console.log('✅ music_directories 表初始化完成');
+      }
+    }
+  );
 }
 
 module.exports = db;

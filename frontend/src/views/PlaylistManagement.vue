@@ -75,28 +75,190 @@
         </div>
       </div>
       
-      <!-- 右侧：m3u8 内容和导出 -->
+      <!-- 右侧：歌曲列表 + m3u8 内容 -->
       <div class="right-panel">
-        <div class="panel-header">
-          <h2 v-if="selectedPlaylist">{{ selectedPlaylist.name }} - M3U8 内容</h2>
-          <h2 v-else>选择歌单查看内容</h2>
+        <div class="right-panel-content">
+          <!-- 左侧：歌曲列表 -->
+          <div class="songs-panel">
+            <div class="panel-header">
+              <h2 v-if="selectedPlaylist">{{ selectedPlaylist.name }} - 歌曲列表</h2>
+              <h2 v-else>选择歌单查看内容</h2>
+              <div v-if="selectedPlaylist" class="panel-actions">
+                <button 
+                  v-if="selectedSongs.length > 0"
+                  @click="deleteSelectedSongs"
+                  class="btn-delete-songs"
+                >
+                  <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                  </svg>
+                  删除 ({{ selectedSongs.length }})
+                </button>
+                <button 
+                  @click="openAddSongDialog"
+                  class="btn-add-song"
+                >
+                  <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  增加
+                </button>
+              </div>
+            </div>
+            
+            <div class="songs-list">
+              <div v-if="!selectedPlaylist" class="empty-state">
+                <p>请在左侧选择一个歌单</p>
+              </div>
+              
+              <div v-else-if="loadingSongs" class="loading-state">
+                <p>加载歌曲列表...</p>
+              </div>
+              
+              <div v-else-if="songs.length > 0" class="songs-content">
+                <div 
+                  v-for="(song, index) in songs" 
+                  :key="song.id"
+                  :class="['song-item', { selected: selectedSongs.includes(song.id) }]"
+                  @click="toggleSongSelection(song.id)"
+                >
+                  <div class="song-checkbox">
+                    <input 
+                      type="checkbox" 
+                      :checked="selectedSongs.includes(song.id)"
+                      @click.stop
+                      @change="toggleSongSelection(song.id)"
+                    />
+                  </div>
+                  <div class="song-index">{{ index + 1 }}</div>
+                  <div class="song-info">
+                    <div class="song-name">{{ song.name }}</div>
+                    <div class="song-path">{{ song.file_path }}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div v-else class="empty-state">
+                <p>该歌单暂无歌曲</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 右侧：m3u8 内容 -->
+          <div class="m3u8-panel">
+            <div class="panel-header">
+              <h2 v-if="selectedPlaylist">{{ selectedPlaylist.name }} - M3U8 内容</h2>
+              <h2 v-else>M3U8 内容</h2>
+            </div>
+            
+            <div class="m3u8-content-wrapper">
+              <div v-if="!selectedPlaylist" class="empty-state">
+                <p>请在左侧选择一个歌单</p>
+              </div>
+              
+              <div v-else-if="loadingM3U8" class="loading-state">
+                <p>加载 m3u8 内容...</p>
+              </div>
+              
+              <div v-else-if="m3u8Content" class="m3u8-display">
+                <pre>{{ m3u8Content }}</pre>
+              </div>
+              
+              <div v-else class="empty-state">
+                <p>该歌单暂无歌曲</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加歌曲对话框 -->
+    <div v-if="showAddSongDialog" class="modal-overlay" @click.self="closeAddSongDialog">
+      <div class="modal modal-large">
+        <div class="modal-header">
+          <h2>
+            <svg class="modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            添加歌曲到歌单
+          </h2>
         </div>
         
-        <div class="m3u8-content-wrapper">
-          <div v-if="!selectedPlaylist" class="empty-state">
-            <p>请在左侧选择一个歌单</p>
+        <div class="modal-body">
+          <!-- 面包屑导航 -->
+          <div class="breadcrumb">
+            <button @click="navigateToDir(parentDir)" :disabled="!parentDir || parentDir === currentDir">
+              <svg class="breadcrumb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              上级目录
+            </button>
+            <span class="path">{{ currentDir || '加载中...' }}</span>
           </div>
           
-          <div v-else-if="loadingM3U8" class="loading-state">
-            <p>加载 m3u8 内容...</p>
+          <!-- 文件列表 -->
+          <div class="file-browser">
+            <div v-if="loadingFiles" class="loading-state">
+              <p>加载中...</p>
+            </div>
+            <div v-else class="file-list-container">
+              <div 
+                v-for="item in directoryItems" 
+                :key="item.path"
+                :class="['file-item', { 'is-directory': item.isDirectory, 'is-audio': item.isAudio, selected: selectedFileItems.includes(item) }]"
+                @click="handleFileItemClick(item)"
+                @dblclick="handleFileItemDblClick(item)"
+              >
+                <div class="file-checkbox">
+                  <input 
+                    type="checkbox" 
+                    :checked="selectedFileItems.includes(item)"
+                    @click.stop
+                    @change="toggleFileSelection(item)"
+                    :disabled="item.isDirectory"
+                  />
+                </div>
+                <div class="file-icon">
+                  <svg v-if="item.isDirectory" class="file-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                  </svg>
+                  <svg v-else-if="item.isAudio" class="file-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                  </svg>
+                  <svg v-else class="file-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                  </svg>
+                </div>
+                <div class="file-info">
+                  <span class="file-name">{{ item.name }}</span>
+                  <span v-if="!item.isDirectory" class="file-size">{{ formatFileSize(item.size) }}</span>
+                </div>
+              </div>
+              
+              <div v-if="directoryItems.length === 0" class="empty-state">
+                <p>该目录为空</p>
+              </div>
+            </div>
           </div>
-          
-          <div v-else-if="m3u8Content" class="m3u8-display">
-            <pre>{{ m3u8Content }}</pre>
+        </div>
+        
+        <div class="modal-footer">
+          <div class="export-info">
+            <p>
+              <svg class="info-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+              </svg>
+              提示：双击目录进入，勾选音乐文件后点击确认添加
+            </p>
           </div>
-          
-          <div v-else class="empty-state">
-            <p>该歌单暂无歌曲</p>
+          <div class="modal-actions">
+            <button @click="closeAddSongDialog" class="btn-cancel">取消</button>
+            <button @click="addSelectedFilesToPlaylist" class="btn-confirm" :disabled="selectedFileItems.length === 0">
+              确认添加 ({{ selectedFileItems.length }} 个文件)
+            </button>
           </div>
         </div>
       </div>
@@ -218,7 +380,7 @@
 </template>
 
 <script>
-import { getPlaylists, createPlaylist, updatePlaylist, deletePlaylist, getPlaylistM3U8, exportPlaylist, importPlaylist, importPlaylistContent } from '../api';
+import { getPlaylists, createPlaylist, updatePlaylist, deletePlaylist, getPlaylistM3U8, getPlaylistItems, addPlaylistItem, deletePlaylistItem, exportPlaylist, importPlaylist, importPlaylistContent, browseDirectory } from '../api';
 
 export default {
   name: 'PlaylistManagement',
@@ -226,15 +388,25 @@ export default {
     return {
       playlists: [],
       selectedPlaylist: null,
+      songs: [],
       m3u8Content: '',
       m3u8Items: 0,
       loading: false,
+      loadingSongs: false,
       loadingM3U8: false,
       showCreateDialog: false,
       showEditDialog: false,
       showExportDialog: false,
       showImportDialog: false,
+      showAddSongDialog: false,
       selectedFiles: [],
+      selectedSongFiles: [],
+      selectedSongs: [],
+      directoryItems: [],
+      currentDir: '',
+      parentDir: '',
+      loadingFiles: false,
+      selectedFileItems: [],
       currentPlaylist: {
         id: null,
         name: '',
@@ -264,8 +436,21 @@ export default {
     // 选择歌单
     async selectPlaylist(playlist) {
       this.selectedPlaylist = playlist;
+      this.songs = [];
+      this.selectedSongs = [];
       this.m3u8Content = '';
       this.m3u8Items = 0;
+      
+      // 加载歌曲列表
+      this.loadingSongs = true;
+      try {
+        const res = await getPlaylistItems(playlist.id);
+        this.songs = res.data;
+      } catch (error) {
+        console.error('加载歌曲列表失败:', error);
+      } finally {
+        this.loadingSongs = false;
+      }
       
       // 加载 m3u8 内容
       this.loadingM3U8 = true;
@@ -369,6 +554,252 @@ export default {
     handleFileSelect(event) {
       const files = Array.from(event.target.files);
       this.selectedFiles = files;
+    },
+    
+    // 处理音乐文件选择
+    handleSongFileSelect(event) {
+      const files = Array.from(event.target.files);
+      this.selectedSongFiles = files;
+    },
+    
+    // 关闭添加歌曲对话框
+    closeAddSongDialog() {
+      this.showAddSongDialog = false;
+      this.selectedSongFiles = [];
+      this.directoryItems = [];
+      this.selectedFileItems = [];
+      this.currentDir = '';
+      this.parentDir = '';
+      if (this.$refs.songFileInput) {
+        this.$refs.songFileInput.value = '';
+      }
+    },
+    
+    // 打开添加歌曲对话框
+    openAddSongDialog() {
+      this.showAddSongDialog = true;
+      this.loadDirectory();
+    },
+    
+    // 加载目录
+    async loadDirectory(dir) {
+      this.loadingFiles = true;
+      try {
+        const res = await browseDirectory(dir);
+        const data = res.data;
+        this.currentDir = data.currentDir;
+        this.parentDir = data.parentDir;
+        
+        // 只保留目录和音乐文件，过滤隐藏文件和目录
+        this.directoryItems = data.items
+          .filter(item => {
+            const name = item.name;
+            return !name.startsWith('.');
+          })
+          .sort((a, b) => {
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+          });
+      } catch (error) {
+        console.error('加载目录失败:', error);
+      } finally {
+        this.loadingFiles = false;
+      }
+    },
+    
+    // 导航到目录
+    navigateToDir(dir) {
+      if (dir) {
+        this.loadDirectory(dir);
+      }
+    },
+    
+    // 单击文件项
+    handleFileItemClick(item) {
+      if (item.isAudio) {
+        this.toggleFileSelection(item);
+      }
+    },
+    
+    // 双击目录
+    handleFileItemDblClick(item) {
+      if (item.isDirectory) {
+        this.loadDirectory(item.path);
+      }
+    },
+    
+    // 切换文件选择
+    toggleFileSelection(item) {
+      const index = this.selectedFileItems.indexOf(item);
+      if (index > -1) {
+        this.selectedFileItems.splice(index, 1);
+      } else {
+        this.selectedFileItems.push(item);
+      }
+    },
+    
+    // 添加选中的文件到歌单
+    async addSelectedFilesToPlaylist() {
+      if (this.selectedFileItems.length === 0 || !this.selectedPlaylist) {
+        alert('请选择音乐文件');
+        return;
+      }
+      
+      let successCount = 0;
+      let failCount = 0;
+      let skipCount = 0;
+      const errors = [];
+      
+      for (const item of this.selectedFileItems) {
+        try {
+          const fileName = item.name.replace(/\.[^/.]+$/, ''); // 移除扩展名
+          
+          const result = await addPlaylistItem(
+            this.selectedPlaylist.id,
+            fileName,
+            item.path,
+            item.size,
+            null
+          );
+          
+          // 检查是否跳过了重复歌曲
+          if (result.data && result.data.skipped) {
+            skipCount++;
+          } else {
+            successCount++;
+          }
+        } catch (error) {
+          failCount++;
+          errors.push(`${item.name}: ${error.response?.data?.error || error.message}`);
+        }
+      }
+      
+      let message = `添加完成！\n成功：${successCount} 个\n跳过：${skipCount} 个（重复）\n失败：${failCount} 个`;
+      if (errors.length > 0) {
+        message += '\n\n失败详情：\n' + errors.join('\n');
+      }
+      
+      alert(message);
+      this.closeAddSongDialog();
+      
+      // 刷新歌单列表和歌曲列表
+      this.selectPlaylist(this.selectedPlaylist);
+      this.loadPlaylists();
+    },
+    
+    // 格式化文件大小
+    formatFileSize(bytes) {
+      if (!bytes) return '';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let size = bytes;
+      let unitIndex = 0;
+      
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+      }
+      
+      return `${size.toFixed(2)} ${units[unitIndex]}`;
+    },
+    
+    // 切换歌曲选择
+    toggleSongSelection(songId) {
+      const index = this.selectedSongs.indexOf(songId);
+      if (index > -1) {
+        this.selectedSongs.splice(index, 1);
+      } else {
+        this.selectedSongs.push(songId);
+      }
+    },
+    
+    // 删除选中的歌曲
+    async deleteSelectedSongs() {
+      if (this.selectedSongs.length === 0) {
+        alert('请先选择要删除的歌曲');
+        return;
+      }
+      
+      if (!confirm(`确定要删除选中的 ${this.selectedSongs.length} 首歌曲吗？`)) {
+        return;
+      }
+      
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+      
+      for (const songId of this.selectedSongs) {
+        try {
+          await deletePlaylistItem(this.selectedPlaylist.id, songId);
+          successCount++;
+        } catch (error) {
+          failCount++;
+          errors.push(`歌曲 ID ${songId}: ${error.response?.data?.error || error.message}`);
+        }
+      }
+      
+      let message = `删除完成！\n成功：${successCount} 首\n失败：${failCount} 首`;
+      if (errors.length > 0) {
+        message += '\n\n失败详情：\n' + errors.join('\n');
+      }
+      
+      alert(message);
+      this.selectedSongs = [];
+      
+      // 刷新列表
+      this.selectPlaylist(this.selectedPlaylist);
+      this.loadPlaylists();
+    },
+    
+    // 添加歌曲到歌单
+    async addSongsToPlaylist() {
+      if (this.selectedSongFiles.length === 0 || !this.selectedPlaylist) {
+        alert('请选择音乐文件');
+        return;
+      }
+      
+      // 检查是否所有文件都输入了路径
+      const filesWithoutPath = this.selectedSongFiles.filter(f => !f.customPath || !f.customPath.trim());
+      if (filesWithoutPath.length > 0) {
+        alert(`请为所有文件输入完整路径，还有 ${filesWithoutPath.length} 个文件未填写路径`);
+        return;
+      }
+      
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+      
+      for (const file of this.selectedSongFiles) {
+        try {
+          // 使用用户输入的完整路径
+          const filePath = file.customPath.trim();
+          const fileName = file.name.replace(/\.[^/.]+$/, ''); // 移除扩展名
+          
+          await addPlaylistItem(
+            this.selectedPlaylist.id,
+            fileName,
+            filePath,
+            file.size,
+            null
+          );
+          successCount++;
+        } catch (error) {
+          failCount++;
+          errors.push(`${file.name}: ${error.response?.data?.error || error.message}`);
+        }
+      }
+      
+      let message = `添加完成！\n成功：${successCount} 个\n失败：${failCount} 个`;
+      if (errors.length > 0) {
+        message += '\n\n失败详情：\n' + errors.join('\n');
+      }
+      
+      alert(message);
+      this.closeAddSongDialog();
+      
+      // 刷新歌单列表和歌曲列表
+      this.selectPlaylist(this.selectedPlaylist);
+      this.loadPlaylists();
     },
     
     // 导入多个 m3u8 文件
@@ -547,18 +978,227 @@ export default {
   margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 150px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
 .file-list li {
-  padding: 8px 10px;
+  padding: 10px;
   margin-bottom: 5px;
   background: white;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #333;
+  border-radius: 6px;
   border-left: 3px solid #3498db;
+}
+
+.file-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.file-path-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  box-sizing: border-box;
+}
+
+.file-path-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+}
+
+/* 文件浏览器样式 */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+.breadcrumb button {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.breadcrumb button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.breadcrumb-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.breadcrumb .path {
+  font-size: 13px;
+  color: #666;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-browser {
+  flex: 1;
+  min-height: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+}
+
+.file-list-container {
+  padding: 10px;
+}
+
+.file-item {
+  background: white;
+  padding: 10px 12px;
+  margin-bottom: 5px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.file-item:hover {
+  background: #f0f8ff;
+}
+
+.file-item.selected {
+  background: #e3f2fd;
+  border-color: #3498db;
+}
+
+.file-checkbox {
+  flex-shrink: 0;
+}
+
+.file-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3498db;
+}
+
+.file-checkbox input[type="checkbox"]:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-icon-svg {
+  width: 20px;
+  height: 20px;
+  color: #666;
+}
+
+.file-item.is-audio .file-icon-svg {
+  color: #3498db;
+}
+
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 12px;
+  color: #999;
+}
+
+.modal-large {
+  width: 700px;
+  max-width: 90%;
+  height: 80vh;
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 25px;
+  min-height: 0;
+}
+
+.modal-footer {
+  padding: 15px 25px 20px;
+  border-top: 1px solid #e0e0e0;
+  background: white;
+  flex-shrink: 0;
+}
+
+.modal-footer .export-info {
+  margin-bottom: 15px;
+}
+
+.modal-footer .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .content-wrapper {
@@ -568,7 +1208,7 @@ export default {
 }
 
 .left-panel {
-  width: 33.33%;
+  width: 25%;
   border-right: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
@@ -580,6 +1220,149 @@ export default {
   display: flex;
   flex-direction: column;
   background: white;
+  overflow: hidden;
+}
+
+.right-panel-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.songs-panel {
+  width: 50%;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  background: white;
+}
+
+.m3u8-panel {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  background: white;
+}
+
+.songs-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.songs-content {
+  padding: 10px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-delete-songs {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-delete-songs:hover {
+  background: #c0392b;
+}
+
+.song-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: #fafafa;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.song-item:hover {
+  background: #f0f8ff;
+}
+
+.song-item.selected {
+  background: #e3f2fd;
+  border-color: #3498db;
+}
+
+.song-checkbox {
+  margin-right: 8px;
+  padding-top: 4px;
+}
+
+.song-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3498db;
+}
+
+.song-index {
+  width: 28px;
+  height: 28px;
+  background: #3498db;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.song-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-name {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.song-path {
+  font-size: 12px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-add-song {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-add-song:hover {
+  background: #2980b9;
 }
 
 .panel-header {
@@ -736,6 +1519,7 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 20px;
 }
 
 .modal {

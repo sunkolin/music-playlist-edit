@@ -117,23 +117,49 @@ app.post('/api/playlists/:playlistId/items', (req, res) => {
   const { playlistId } = req.params;
   const { name, filePath, fileSize, duration } = req.body;
   
-  db.run(
-    'INSERT INTO playlist_items (playlist_id, name, file_path, file_size, duration) VALUES (?, ?, ?, ?, ?)',
-    [playlistId, name, filePath, fileSize || null, duration || null],
-    function (err) {
+  // 先检查是否已存在相同路径的歌曲
+  db.get(
+    'SELECT id FROM playlist_items WHERE playlist_id = ? AND file_path = ?',
+    [playlistId, filePath],
+    (err, row) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json({
-        data: {
-          id: this.lastID,
-          playlist_id: playlistId,
-          name,
-          file_path: filePath,
-          file_size: fileSize,
-          duration
+      
+      if (row) {
+        // 歌曲已存在，直接返回成功（忽略重复添加）
+        return res.json({
+          message: '歌曲已存在，跳过添加',
+          data: {
+            id: row.id,
+            playlist_id: playlistId,
+            name,
+            file_path: filePath,
+            skipped: true
+          }
+        });
+      }
+      
+      // 歌曲不存在，执行插入
+      db.run(
+        'INSERT INTO playlist_items (playlist_id, name, file_path, file_size, duration) VALUES (?, ?, ?, ?, ?)',
+        [playlistId, name, filePath, fileSize || null, duration || null],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          res.json({
+            data: {
+              id: this.lastID,
+              playlist_id: playlistId,
+              name,
+              file_path: filePath,
+              file_size: fileSize,
+              duration
+            }
+          });
         }
-      });
+      );
     }
   );
 });
@@ -158,13 +184,72 @@ app.delete('/api/playlists/:playlistId/items/:itemId', (req, res) => {
 
 // ==================== 文件系统浏览 API ====================
 
-// 浏览目录
+// 浏览目录 - 只允许访问已录入的目录
 app.get('/api/filesystem', (req, res) => {
   const { dir } = req.query;
   
-  // 默认从用户主目录开始
-  const targetDir = dir || process.env.HOME || process.env.USERPROFILE || '/';
-  
+  // 如果指定了目录，检查是否在已录入的目录中
+  if (dir) {
+    // 获取所有已录入的目录
+    db.all('SELECT path FROM music_directories', [], (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      const allowedPaths = rows.map(row => row.path);
+      
+      // 检查请求的目录是否在允许的目录中
+      const isAllowed = allowedPaths.some(allowedPath => {
+        // 检查dir是否在某个允许的目录下
+        if (dir.startsWith(allowedPath)) {
+          // 检查是否是子目录
+          const relativePath = dir.substring(allowedPath.length);
+          return relativePath === '' || relativePath.startsWith('/') || relativePath.startsWith('\\');
+        }
+        return false;
+      });
+      
+      if (!isAllowed) {
+        return res.status(403).json({ error: '无权访问此目录' });
+      }
+      
+      browseDirectoryInternal(res, dir);
+    });
+  } else {
+    // 如果没有指定目录，返回已录入的根目录列表
+    db.all('SELECT path FROM music_directories', [], (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      const allowedPaths = rows.map(row => row.path);
+      
+      // 只返回允许的根目录
+      const items = allowedPaths.map(path => {
+        const name = path.split(/[\/\\]/).pop() || path;
+        return {
+          name: name,
+          path: path,
+          isDirectory: true,
+          size: null,
+          modified: null,
+          isAudio: false
+        };
+      });
+      
+      const result = {
+        currentDir: '已录入的目录',
+        parentDir: null,
+        items: items
+      };
+      
+      res.json({ data: result });
+    });
+  }
+});
+
+// 内部方法：实际的目录浏览功能
+function browseDirectoryInternal(res, targetDir) {
   // 安全检查：确保路径是绝对路径
   if (!path.isAbsolute(targetDir)) {
     return res.status(400).json({ error: '路径必须是绝对路径' });
@@ -182,27 +267,32 @@ app.get('/api/filesystem', (req, res) => {
     const result = {
       currentDir: targetDir,
       parentDir: path.dirname(targetDir),
-      items: items.map(item => {
-        const fullPath = path.join(targetDir, item.name);
-        const itemStats = fs.statSync(fullPath);
-        
-        return {
-          name: item.name,
-          path: fullPath,
-          isDirectory: item.isDirectory(),
-          size: itemStats.size,
-          modified: itemStats.mtime,
-          // 判断是否为音频文件
-          isAudio: item.isFile() && /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i.test(item.name)
-        };
-      })
+      items: items
+        .filter(item => {
+          // 过滤隐藏文件和隐藏目录（以 . 开头）
+          return !item.name.startsWith('.');
+        })
+        .map(item => {
+          const fullPath = path.join(targetDir, item.name);
+          const itemStats = fs.statSync(fullPath);
+          
+          return {
+            name: item.name,
+            path: fullPath,
+            isDirectory: item.isDirectory(),
+            size: itemStats.size,
+            modified: itemStats.mtime,
+            // 判断是否为音频文件
+            isAudio: item.isFile() && /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i.test(item.name)
+          };
+        })
     };
     
     res.json({ data: result });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 // 获取音频文件信息
 app.get('/api/filesystem/fileinfo', (req, res) => {
@@ -227,6 +317,53 @@ app.get('/api/filesystem/fileinfo', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ==================== 歌曲目录相关 API ====================
+
+// 获取所有歌曲目录
+app.get('/api/music-directories', (req, res) => {
+  db.all('SELECT * FROM music_directories ORDER BY created_at DESC', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ data: rows });
+  });
+});
+
+// 添加歌曲目录
+app.post('/api/music-directories', (req, res) => {
+  const { path, name } = req.body;
+  
+  if (!path || !name) {
+    return res.status(400).json({ error: '路径和名称不能为空' });
+  }
+  
+  db.run(
+    'INSERT INTO music_directories (path, name) VALUES (?, ?)',
+    [path, name],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ data: { id: this.lastID, path, name } });
+    }
+  );
+});
+
+// 删除歌曲目录
+app.delete('/api/music-directories/:id', (req, res) => {
+  const id = req.params.id;
+  
+  db.run('DELETE FROM music_directories WHERE id = ?', [id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ message: '歌曲目录未找到' });
+    }
+    res.json({ message: '删除成功' });
+  });
 });
 
 // ==================== m3u8 文件相关 API ====================
