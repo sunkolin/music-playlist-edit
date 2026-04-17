@@ -1,11 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import PlaylistList from '../views/PlaylistList.vue'
+import PlaylistManagement from '../views/PlaylistManagement.vue'
+import PlaylistEditor from '../views/PlaylistEditor.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'PlaylistList',
-    component: PlaylistList
+    redirect: '/playlists'
+  },
+  {
+    path: '/playlists',
+    name: 'PlaylistManagement',
+    component: PlaylistManagement
+  },
+  {
+    path: '/editor',
+    name: 'PlaylistEditor',
+    component: PlaylistEditor
   }
 ]
 

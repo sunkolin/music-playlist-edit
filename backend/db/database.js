@@ -28,7 +28,28 @@ function initializeDatabase() {
       if (err) {
         console.error('创建表失败:', err.message);
       } else {
-        console.log('✅ 数据库表初始化完成');
+        console.log('✅ playlists 表初始化完成');
+      }
+    }
+  );
+
+  // 创建歌单项表
+  db.run(
+    `CREATE TABLE IF NOT EXISTS playlist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      playlist_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER,
+      duration TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+    )`,
+    (err) => {
+      if (err) {
+        console.error('创建 playlist_items 表失败:', err.message);
+      } else {
+        console.log('✅ playlist_items 表初始化完成');
       }
     }
   );

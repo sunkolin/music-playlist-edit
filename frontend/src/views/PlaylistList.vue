@@ -1,6 +1,11 @@
 <template>
   <div class="playlist-list">
-    <h1>🎵 歌单编辑器</h1>
+    <h1>
+      <svg style="width:28px;height:28px;vertical-align:middle;" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+      </svg>
+      歌单编辑器
+    </h1>
     <div class="playlist-container">
       <div v-for="playlist in playlists" :key="playlist.id" class="playlist-card">
         <h2>{{ playlist.name }}</h2>
