@@ -81,7 +81,7 @@
           <div 
             v-if="parentDir && parentDir !== currentDir"
             class="file-item is-directory"
-            @click="navigateUp"
+            @dblclick="navigateUp"
           >
             <div class="file-icon">
               <svg class="file-icon-svg folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -110,7 +110,7 @@
               type="checkbox" 
               :checked="isFileSelected(item)"
               @click.stop
-              @change="toggleFileSelection(item)"
+              @change="handleCheckboxChange(item, $event)"
               class="file-checkbox"
             />
             
@@ -335,15 +335,6 @@ export default {
     
     // 单击文件项
     handleItemClick(item, event) {
-      // 如果是目录，点击进入目录
-      if (item.isDirectory) {
-        this.loadDirectory(item.path);
-        return;
-      }
-      
-      // 只有音频文件才能选择
-      if (!item.isAudio) return;
-      
       // 获取当前item的索引
       const currentIndex = this.directoryItems.indexOf(item);
       
@@ -353,18 +344,21 @@ export default {
         const start = Math.min(this.lastSelectedIndex, currentIndex);
         const end = Math.max(this.lastSelectedIndex, currentIndex);
         
-        // 清空之前的选择
-        this.selectedFileItems = [];
-        
-        // 选择范围内的所有音频文件和文件夹
+        // 不清空之前的选择，将新范围的项添加到已选列表中
         for (let i = start; i <= end; i++) {
           const rangeItem = this.directoryItems[i];
           if (rangeItem.isAudio || rangeItem.isDirectory) {
-            this.selectedFileItems.push(rangeItem);
+            // 如果不在已选列表中，则添加
+            if (!this.selectedFileItems.includes(rangeItem)) {
+              this.selectedFileItems.push(rangeItem);
+            }
           }
         }
       } else {
-        // 普通点击：切换当前项的选择状态
+        // 普通点击：只处理文件选择（音频文件和文件夹）
+        if (!item.isAudio && !item.isDirectory) return;
+        
+        // 切换当前项的选择状态
         this.toggleFileSelection(item);
         this.lastSelectedIndex = currentIndex;
       }
@@ -380,6 +374,34 @@ export default {
     // 判断文件是否被选中
     isFileSelected(item) {
       return this.selectedFileItems.includes(item);
+    },
+    
+    // 处理checkbox变更
+    handleCheckboxChange(item, event) {
+      // 获取当前item的索引
+      const currentIndex = this.directoryItems.indexOf(item);
+      
+      // 检查是否按下Shift键
+      if (event.shiftKey && this.lastSelectedIndex !== -1 && this.lastSelectedIndex !== currentIndex) {
+        // Shift多选：选择从上次选择到当前点击之间的所有项
+        const start = Math.min(this.lastSelectedIndex, currentIndex);
+        const end = Math.max(this.lastSelectedIndex, currentIndex);
+        
+        // 不清空之前的选择，将新范围的项添加到已选列表中
+        for (let i = start; i <= end; i++) {
+          const rangeItem = this.directoryItems[i];
+          if (rangeItem.isAudio || rangeItem.isDirectory) {
+            // 如果不在已选列表中，则添加
+            if (!this.selectedFileItems.includes(rangeItem)) {
+              this.selectedFileItems.push(rangeItem);
+            }
+          }
+        }
+      } else {
+        // 普通点击：切换当前项的选择状态
+        this.toggleFileSelection(item);
+        this.lastSelectedIndex = currentIndex;
+      }
     },
     
     // 切换文件选择状态
